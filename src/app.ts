@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response } from "express";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { authenticateHost } from "./auth.js";
 import { bookSlot } from "./booking.js";
@@ -17,6 +18,8 @@ import { parseBooking, parseIdempotencyKey, parseSlot } from "./validation.js";
 export { initDb } from "./db.js";
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
+const openApiPath = fileURLToPath(new URL("../docs/openapi.yaml", import.meta.url));
+const apiDocsPath = fileURLToPath(new URL("../public/api-docs.html", import.meta.url));
 
 // Only API routes are rate limited. Static assets and page navigations are not,
 // so an exhausted bucket can never turn the app shell into an error page.
@@ -202,6 +205,19 @@ export function createApp(config: AppConfig = loadConfig()): express.Express {
     res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
     return res.send(renderMetrics());
   });
+
+  app.get("/openapi.json", (_req, res) => {
+    try {
+      // Stored as JSON-compatible YAML so no YAML parser is needed.
+      const spec = readFileSync(openApiPath, "utf8");
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      return res.send(spec);
+    } catch {
+      return sendError(res, 404, "openapi spec not found");
+    }
+  });
+
+  app.get("/api-docs", (_req, res) => res.sendFile(apiDocsPath));
 
   app.post("/slots", (req, res) => {
     const db = getDb();

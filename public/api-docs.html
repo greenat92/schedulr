@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>schedulr · API docs</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">◷</span> schedulr
+        <span class="tag">api docs</span>
+      </div>
+      <div class="topbar-links">
+        <a class="ghost link" href="/outbox.html">Email worker</a>
+        <a class="ghost link" href="/lab.html">Scenario lab</a>
+        <a class="ghost link" href="/">← Back to app</a>
+      </div>
+    </header>
+
+    <main class="lab">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2 id="api-title">API</h2>
+            <p id="api-version" class="muted"></p>
+          </div>
+          <a class="ghost link" href="/openapi.json">Raw OpenAPI</a>
+        </div>
+        <p id="api-description" class="muted"></p>
+        <p class="muted">
+          Host endpoints require <code>Authorization: Bearer &lt;key&gt;</code>. Guest endpoints
+          are public. Full reference: <code>docs/api.md</code>.
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Operations</h2>
+            <p class="muted">Generated from the live OpenAPI spec.</p>
+          </div>
+        </div>
+        <div id="operations" class="scenario-groups"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module">
+      const operationContainer = document.getElementById("operations");
+
+      function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      try {
+        const response = await fetch("/openapi.json");
+        if (!response.ok) throw new Error(`Failed to load spec (${response.status})`);
+        const spec = await response.json();
+
+        document.getElementById("api-title").textContent = spec.info?.title ?? "schedulr API";
+        document.getElementById("api-version").textContent = `v${spec.info?.version ?? "?"}`;
+        document.getElementById("api-description").textContent = spec.info?.description ?? "";
+
+        const groups = new Map();
+        for (const [path, methods] of Object.entries(spec.paths ?? {})) {
+          for (const [method, operation] of Object.entries(methods)) {
+            const tag = operation.tags?.[0] ?? "Other";
+            if (!groups.has(tag)) groups.set(tag, []);
+            groups.get(tag).push({ path, method, operation });
+          }
+        }
+
+        const order = ["Host", "Guest", "Operations"];
+        const sortedGroups = [...groups.entries()].sort(
+          (a, b) => order.indexOf(a[0]) - order.indexOf(b[0]),
+        );
+
+        for (const [tag, items] of sortedGroups) {
+          const group = el("div", "scenario-group");
+          group.append(el("h3", undefined, tag));
+          for (const { path, method, operation } of items) {
+            const row = el("div", "op-row");
+            row.append(el("span", `method ${method}`, method.toUpperCase()));
+            row.append(el("code", "op-path", path));
+            row.append(el("span", "op-summary", operation.summary ?? ""));
+            if (Array.isArray(operation.security) && operation.security.length > 0) {
+              row.append(el("span", "op-auth", "auth"));
+            }
+            group.append(row);
+          }
+          operationContainer.append(group);
+        }
+      } catch (error) {
+        operationContainer.replaceChildren(
+          el("p", "muted", `Could not load the API spec: ${error.message}`),
+        );
+      }
+    </script>
+  </body>
+</html>

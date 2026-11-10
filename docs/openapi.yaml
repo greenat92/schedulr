@@ -1,0 +1,400 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "schedulr API",
+    "version": "0.1.0",
+    "description": "A small Calendly-style booking service. Hosts publish availability, guests book slots, and confirmation emails are delivered by a durable outbox worker. Host endpoints require an API key; guest endpoints are public."
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:8080", "description": "Local development" }
+  ],
+  "tags": [
+    { "name": "Host", "description": "Host-facing endpoints (API key required)" },
+    { "name": "Guest", "description": "Guest-facing endpoints (public)" },
+    { "name": "Operations", "description": "Health, config, and metrics" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "description": "Host API key, e.g. `Authorization: Bearer alice-key`" },
+      "apiKeyHeader": { "type": "apiKey", "in": "header", "name": "X-Api-Key", "description": "Alternative to the bearer token" }
+    },
+    "parameters": {
+      "HostName": {
+        "name": "host",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "maxLength": 100 }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque keyset cursor returned in the X-Next-Cursor response header. Takes precedence over offset.",
+        "schema": { "type": "string" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": { "type": "string", "maxLength": 128 }
+      },
+      "OutboxStatus": {
+        "name": "status",
+        "in": "query",
+        "schema": { "type": "string", "enum": ["pending", "sending", "sent", "failed"] }
+      }
+    },
+    "headers": {
+      "X-Request-Id": {
+        "description": "Correlation id, generated or echoed from the request.",
+        "schema": { "type": "string" }
+      },
+      "X-Next-Cursor": {
+        "description": "Cursor for the next page, present when more rows exist.",
+        "schema": { "type": "string" }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying a rate-limited request.",
+        "schema": { "type": "integer" }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string" } }
+      },
+      "Slot": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "host": { "type": "string" },
+          "start_at": { "type": "string", "format": "date-time" },
+          "duration_minutes": { "type": "integer" },
+          "booked": { "type": "integer", "enum": [0, 1] }
+        }
+      },
+      "SlotRequest": {
+        "type": "object",
+        "required": ["start_at"],
+        "properties": {
+          "host": { "type": "string", "description": "Optional; must match the authenticated host if provided." },
+          "start_at": { "type": "string", "format": "date-time", "description": "Must be in the future." },
+          "duration_minutes": { "type": "integer", "minimum": 1, "default": 30 }
+        }
+      },
+      "BookRequest": {
+        "type": "object",
+        "required": ["slot_id", "guest_name", "guest_email"],
+        "properties": {
+          "slot_id": { "type": "integer", "minimum": 1 },
+          "guest_name": { "type": "string", "maxLength": 200 },
+          "guest_email": { "type": "string", "format": "email", "maxLength": 254 }
+        }
+      },
+      "Booking": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "slot_id": { "type": "integer" },
+          "guest_name": { "type": "string" },
+          "guest_email": { "type": "string", "format": "email" },
+          "booked_at": { "type": "string" },
+          "start_at": { "type": "string", "format": "date-time" },
+          "duration_minutes": { "type": "integer" }
+        }
+      },
+      "OutboxRow": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "booking_id": { "type": "integer" },
+          "to_email": { "type": "string", "format": "email" },
+          "host": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "sending", "sent", "failed"] },
+          "attempts": { "type": "integer" },
+          "next_attempt_at": { "type": "string" },
+          "locked_at": { "type": "string", "nullable": true },
+          "last_error": { "type": "string", "nullable": true },
+          "created_at": { "type": "string" }
+        }
+      },
+      "OutboxResponse": {
+        "type": "object",
+        "properties": {
+          "rows": { "type": "array", "items": { "$ref": "#/components/schemas/OutboxRow" } },
+          "stats": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" },
+            "properties": {
+              "pending": { "type": "integer" },
+              "sending": { "type": "integer" },
+              "sent": { "type": "integer" },
+              "failed": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "Config": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": { "type": "integer" },
+          "rateLimit": {
+            "type": "object",
+            "properties": {
+              "windowMs": { "type": "integer" },
+              "max": { "type": "integer" }
+            }
+          },
+          "availabilityCacheTtlMs": { "type": "integer" },
+          "compressionThresholdBytes": { "type": "integer" },
+          "requestTimeoutMs": { "type": "integer" },
+          "bodyLimit": { "type": "string" },
+          "limits": { "type": "object", "additionalProperties": { "type": "integer" } }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid input",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid host API key",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Forbidden": {
+        "description": "Authenticated host may not act on another host",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Conflict": {
+        "description": "Conflict (slot already booked or already exists)",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unprocessable": {
+        "description": "Idempotency key reused with a different payload",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded",
+        "headers": { "Retry-After": { "$ref": "#/components/headers/Retry-After" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    }
+  },
+  "paths": {
+    "/slots": {
+      "post": {
+        "tags": ["Host"],
+        "summary": "Create an availability slot",
+        "security": [{ "bearerAuth": [] }, { "apiKeyHeader": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/SlotRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Slot created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "id": { "type": "integer" } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/availability/{host}": {
+      "get": {
+        "tags": ["Guest"],
+        "summary": "List a host's open slots",
+        "parameters": [
+          { "$ref": "#/components/parameters/HostName" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open slots, ordered by start_at",
+            "headers": { "X-Next-Cursor": { "$ref": "#/components/headers/X-Next-Cursor" } },
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Slot" } }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/book": {
+      "post": {
+        "tags": ["Guest"],
+        "summary": "Book an open slot",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/BookRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Booking created (or replayed for an idempotent retry)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "booking_id": { "type": "integer" } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/Unprocessable" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/bookings/{host}": {
+      "get": {
+        "tags": ["Host"],
+        "summary": "List a host's bookings",
+        "security": [{ "bearerAuth": [] }, { "apiKeyHeader": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/HostName" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/Offset" },
+          { "$ref": "#/components/parameters/Cursor" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bookings, ordered by slot start_at",
+            "headers": { "X-Next-Cursor": { "$ref": "#/components/headers/X-Next-Cursor" } },
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Booking" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/outbox": {
+      "get": {
+        "tags": ["Host"],
+        "summary": "Inspect the host's email outbox and worker state",
+        "security": [{ "bearerAuth": [] }, { "apiKeyHeader": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/OutboxStatus" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outbox rows (newest first) and per-status counts",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/OutboxResponse" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Liveness probe",
+        "responses": {
+          "200": {
+            "description": "Process is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "enum": ["ok"] } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Readiness probe (checks the database)",
+        "responses": {
+          "200": {
+            "description": "Ready to serve",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "enum": ["ready"] } }
+                }
+              }
+            }
+          },
+          "503": { "description": "Not ready" }
+        }
+      }
+    },
+    "/config": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Non-secret operational configuration",
+        "responses": {
+          "200": {
+            "description": "Current configuration and schema version",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Config" } }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["Operations"],
+        "summary": "Prometheus metrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus exposition format",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          }
+        }
+      }
+    }
+  }
+}

@@ -52,3 +52,22 @@ test("config exposes operational settings without secrets", async () => {
   assert.ok(response.body.rateLimit.max >= 1);
   assert.equal(JSON.stringify(response.body).includes("alice-key"), false);
 });
+
+test("serves the OpenAPI spec", async () => {
+  const response = await request(app).get("/openapi.json");
+  assert.equal(response.status, 200);
+  assert.match(response.headers["content-type"], /application\/json/);
+
+  const spec = JSON.parse(response.text);
+  assert.equal(spec.openapi, "3.0.3");
+  assert.ok(spec.paths["/book"]);
+  assert.ok(spec.paths["/availability/{host}"]);
+  assert.ok(spec.components.securitySchemes.bearerAuth);
+});
+
+test("serves the API docs page", async () => {
+  const response = await request(app).get("/api-docs");
+  assert.equal(response.status, 200);
+  assert.match(response.headers["content-type"], /text\/html/);
+  assert.match(response.text, /OpenAPI/i);
+});

@@ -603,3 +603,60 @@ td.mono {
   border-bottom: 1px dashed var(--line);
   padding: 18px;
 }
+
+/* ---- API docs ---- */
+
+.op-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.op-row:last-child {
+  border-bottom: none;
+}
+
+.method {
+  min-width: 52px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.method.get {
+  background: #0f766e;
+}
+
+.method.post {
+  background: var(--accent);
+}
+
+.op-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.op-summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 160px;
+}
+
+.op-auth {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
