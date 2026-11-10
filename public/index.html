@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>schedulr</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="logo" aria-hidden="true">◷</span> schedulr</div>
+      <form id="auth-form" class="auth" autocomplete="off">
+        <label>
+          <span>Host</span>
+          <input id="auth-host" name="host" placeholder="alice" />
+        </label>
+        <label>
+          <span>API key</span>
+          <input id="auth-key" name="key" type="password" placeholder="alice-key" />
+        </label>
+        <button type="submit">Apply</button>
+      </form>
+      <a class="ghost link" href="/lab.html">Scenario lab →</a>
+    </header>
+
+    <main class="layout">
+      <section class="col">
+        <article class="card">
+          <h2>Offer a slot</h2>
+          <p class="muted">Hosts create availability. Requires the host's API key.</p>
+          <form id="slot-form" class="stack">
+            <label>Start <input id="slot-start" type="datetime-local" required /></label>
+            <label>
+              Duration (minutes)
+              <input id="slot-duration" type="number" min="5" step="5" value="30" required />
+            </label>
+            <button type="submit">Create slot</button>
+          </form>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Bookings</h2>
+            <button id="refresh-bookings" class="ghost" type="button">Refresh</button>
+          </div>
+          <p class="muted">Only the authenticated host can see bookings.</p>
+          <ul id="bookings-list" class="list"></ul>
+        </article>
+      </section>
+
+      <section class="col">
+        <article class="card">
+          <div class="card-head">
+            <h2>Availability</h2>
+            <form id="availability-form" class="inline">
+              <input id="availability-host" placeholder="host" aria-label="Host to view" />
+              <button type="submit">View</button>
+            </form>
+          </div>
+          <p class="muted">Guests pick an open slot. No API key required to browse or book.</p>
+          <ul id="availability-list" class="list slots"></ul>
+        </article>
+      </section>
+    </main>
+
+    <dialog id="book-dialog">
+      <form id="book-form" class="stack">
+        <h2>Confirm booking</h2>
+        <p id="book-slot-summary" class="muted"></p>
+        <label>Your name <input id="book-name" required maxlength="200" /></label>
+        <label>
+          Your email
+          <input id="book-email" type="email" required maxlength="254" />
+        </label>
+        <div class="dialog-actions">
+          <button type="button" id="book-cancel" class="ghost">Cancel</button>
+          <button type="button" id="book-confirm">Book slot</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

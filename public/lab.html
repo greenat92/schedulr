@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>schedulr · scenario lab</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">◷</span> schedulr
+        <span class="tag">scenario lab</span>
+      </div>
+      <a class="ghost link" href="/">← Back to app</a>
+    </header>
+
+    <main class="lab">
+      <section class="card">
+        <h2>Credentials</h2>
+        <p class="muted">
+          Scenarios hit the live API. The primary host is used for writes; the secondary
+          host proves cross-host authorization. Defaults work with local dev keys.
+        </p>
+        <form id="credentials" class="credentials">
+          <label>Primary host <input id="primary-host" placeholder="alice" /></label>
+          <label>Primary API key <input id="primary-key" type="password" placeholder="alice-key" /></label>
+          <label>Secondary host <input id="secondary-host" placeholder="bob" /></label>
+          <label>Secondary API key <input id="secondary-key" type="password" placeholder="bob-key" /></label>
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Scenarios</h2>
+            <p class="muted">Each scenario exercises the running server and reports pass/fail.</p>
+          </div>
+          <div class="toolbar">
+            <button id="run-correctness" class="ghost" type="button">Run correctness</button>
+            <button id="run-production" class="ghost" type="button">Run production</button>
+            <button id="run-all" type="button">Run all</button>
+          </div>
+        </div>
+        <div id="scenarios" class="scenario-groups"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Live metrics</h2>
+            <p class="muted">Scraped from <code>/metrics</code>.</p>
+          </div>
+          <button id="refresh-metrics" class="ghost" type="button">Refresh</button>
+        </div>
+        <div id="metrics-panel" class="metric-grid"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/lab.js" type="module"></script>
+  </body>
+</html>
