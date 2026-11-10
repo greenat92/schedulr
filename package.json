@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/server.ts",
-    "test": "node --import tsx --test tests/basic.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "loadtest": "tsx scripts/loadtest.ts",
+    "backup": "tsx scripts/backup.ts"
   },
   "dependencies": {
     "express": "^5.1.0"
