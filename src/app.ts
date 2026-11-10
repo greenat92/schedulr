@@ -18,6 +18,31 @@ export { initDb } from "./db.js";
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 
+// Only API routes are rate limited. Static assets and page navigations are not,
+// so an exhausted bucket can never turn the app shell into an error page.
+const RATE_LIMITED_PREFIXES = [
+  "/slots",
+  "/book",
+  "/availability",
+  "/bookings",
+  "/outbox",
+  "/config",
+];
+
+function isRateLimitedPath(path: string): boolean {
+  return RATE_LIMITED_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
+// Bucket per route group, so an endpoint (e.g. dashboard polling) cannot starve
+// unrelated endpoints for the same IP.
+function rateLimitBucket(path: string): string {
+  return RATE_LIMITED_PREFIXES.find(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  ) ?? path;
+}
+
 interface CachedPage {
   items: unknown[];
   nextCursor?: string;
@@ -138,8 +163,8 @@ export function createApp(config: AppConfig = loadConfig()): express.Express {
     createRateLimiter({
       windowMs: config.rateLimit.windowMs,
       max: config.rateLimit.max,
-      skip: (req) =>
-        req.path === "/metrics" || req.path === "/healthz" || req.path === "/readyz",
+      key: (req) => `${req.ip ?? "unknown"}:${rateLimitBucket(req.path)}`,
+      skip: (req) => !isRateLimitedPath(req.path),
     }),
   );
   app.use(express.json({ limit: config.bodyLimit }));
@@ -280,6 +305,37 @@ export function createApp(config: AppConfig = loadConfig()): express.Express {
         metrics.inc("bookings_total", { result: "idempotency_conflict" });
         return sendError(res, 422, "idempotency key reused with a different request");
     }
+  });
+
+  // Host-scoped view of the email outbox so the worker can be observed live.
+  app.get("/outbox", (req, res) => {
+    const db = getDb();
+    const auth = authenticateHost(db, req, config.limits.apiKey);
+    if (!auth.ok) {
+      return sendError(res, auth.status, auth.error);
+    }
+
+    const rawLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50;
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+
+    const base = `SELECT id, booking_id, to_email, host, status, attempts,
+                         next_attempt_at, locked_at, last_error, created_at
+                  FROM email_outbox
+                  WHERE host = ?`;
+    const rows = (
+      status !== undefined
+        ? db.prepare(`${base} AND status = ? ORDER BY id DESC LIMIT ?`).all(auth.host, status, limit)
+        : db.prepare(`${base} ORDER BY id DESC LIMIT ?`).all(auth.host, limit)
+    ) as unknown[];
+
+    const statsRows = db
+      .prepare("SELECT status, COUNT(*) AS n FROM email_outbox WHERE host = ? GROUP BY status")
+      .all(auth.host) as { status: string; n: number }[];
+    const stats: Record<string, number> = { pending: 0, sending: 0, sent: 0, failed: 0 };
+    for (const row of statsRows) stats[row.status] = row.n;
+
+    return res.json({ rows, stats });
   });
 
   app.get("/bookings/:host", (req, res) => {

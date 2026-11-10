@@ -38,6 +38,13 @@ test("serves the scenario lab", async () => {
   assert.match(response.text, /scenario lab/i);
 });
 
+test("serves the email worker dashboard", async () => {
+  const response = await request(app).get("/outbox.html");
+  assert.equal(response.status, 200);
+  assert.match(response.text, /email worker/i);
+  assert.match(response.text, /Generate 100/);
+});
+
 test("config exposes operational settings without secrets", async () => {
   const response = await request(app).get("/config");
   assert.equal(response.status, 200);

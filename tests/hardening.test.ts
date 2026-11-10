@@ -39,12 +39,40 @@ test("rate limiter returns 429 with Retry-After once the window is exhausted", a
   assert.ok(limited.headers["retry-after"]);
 });
 
-test("health checks bypass the rate limiter", async () => {
+test("health checks and the app shell bypass the rate limiter", async () => {
   for (let i = 0; i < 4; i++) {
     await request(app).get("/availability/nobody");
   }
   const health = await request(app).get("/healthz");
   assert.equal(health.status, 200);
+
+  // Static pages must still load even with an exhausted API bucket.
+  const page = await request(app).get("/");
+  assert.equal(page.status, 200);
+});
+
+test("one route's limit does not starve another route", async () => {
+  const slot = await request(app)
+    .post("/slots")
+    .set("Authorization", "Bearer alice-key")
+    .send({ host: "alice", start_at: at(1) });
+  assert.equal(slot.status, 201);
+
+  // Exhaust the availability bucket.
+  for (let i = 0; i < 4; i++) {
+    await request(app).get("/availability/nobody");
+  }
+  const limited = await request(app).get("/availability/nobody");
+  assert.equal(limited.status, 429);
+
+  // Other route buckets are independent.
+  const booking = await request(app)
+    .post("/book")
+    .send({ slot_id: slot.body.id, guest_name: "Bob", guest_email: "bob@example.com" });
+  assert.equal(booking.status, 201);
+
+  const outbox = await request(app).get("/outbox").set("Authorization", "Bearer alice-key");
+  assert.equal(outbox.status, 200);
 });
 
 test("rejects an over-long host", async () => {

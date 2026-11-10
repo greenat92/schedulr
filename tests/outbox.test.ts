@@ -8,7 +8,7 @@ import request from "supertest";
 
 process.env.EMAIL_LATENCY_MS = "10";
 process.env.EMAIL_FAILURE_RATE = "0";
-process.env.HOST_API_KEYS = "alice:alice-key";
+process.env.HOST_API_KEYS = "alice:alice-key,bob:bob-key";
 process.env.LOG_LEVEL = "error";
 
 const { createApp, initDb } = await import("../src/app.js");
@@ -108,4 +108,33 @@ test("failed delivery is retried with backoff rather than dropped", async () => 
   const retried = await processOutboxOnce();
   assert.equal(retried, 1);
   assert.equal(readOutbox()[0]!.status, "sent");
+});
+
+test("outbox endpoint requires authentication", async () => {
+  const response = await request(app).get("/outbox");
+  assert.equal(response.status, 401);
+});
+
+test("outbox endpoint shows the host's queued email, then its delivery", async () => {
+  await bookFirstSlot();
+
+  const queued = await request(app).get("/outbox").set("Authorization", "Bearer alice-key");
+  assert.equal(queued.status, 200);
+  assert.equal(queued.body.rows.length, 1);
+  assert.equal(queued.body.rows[0].status, "pending");
+  assert.equal(queued.body.stats.pending, 1);
+
+  await processOutboxOnce();
+
+  const delivered = await request(app).get("/outbox").set("Authorization", "Bearer alice-key");
+  assert.equal(delivered.body.rows[0].status, "sent");
+  assert.equal(delivered.body.stats.sent, 1);
+  assert.equal(delivered.body.stats.pending, 0);
+});
+
+test("outbox endpoint is scoped to the authenticated host", async () => {
+  await bookFirstSlot();
+  const response = await request(app).get("/outbox").set("Authorization", "Bearer bob-key");
+  assert.equal(response.status, 200);
+  assert.equal(response.body.rows.length, 0);
 });

@@ -479,3 +479,127 @@ code {
     flex-direction: column;
   }
 }
+
+/* ---- Email worker dashboard ---- */
+
+.topbar-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0 4px;
+}
+
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.controls .check input {
+  width: auto;
+}
+
+.controls select {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  color: var(--ink);
+}
+
+.banner {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f2d38a;
+  background: #fff8e6;
+  color: #7a5200;
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 14px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+td.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pill.pending {
+  background: #fff4d6;
+  color: #8a5b00;
+}
+
+.pill.sending {
+  background: #e6efff;
+  color: #1d4ed8;
+}
+
+.pill.sent {
+  background: #e5f7ee;
+  color: var(--ok);
+}
+
+.pill.failed {
+  background: #fdeceb;
+  color: var(--danger);
+}
+
+.empty-row td {
+  text-align: center;
+  color: var(--muted);
+  border-bottom: 1px dashed var(--line);
+  padding: 18px;
+}

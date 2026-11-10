@@ -1,3 +1,5 @@
+import { fetchMetrics as metricsSnapshot, metricLast, metricSum } from "./metrics.js";
+
 const STORAGE = {
   host: "schedulr.host",
   key: "schedulr.apiKey",
@@ -26,7 +28,7 @@ function toast(message, kind = "ok") {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     element.className = "toast";
-  }, 3500);
+  }, kind === "error" ? 8000 : 3500);
 }
 
 function newId() {
@@ -93,47 +95,6 @@ function recorder() {
       return { ok, lines };
     },
   };
-}
-
-// --- metrics ---------------------------------------------------------------
-
-function parseMetrics(text) {
-  const samples = [];
-  for (const rawLine of text.split("\n")) {
-    const line = rawLine.trim();
-    if (line === "" || line.startsWith("#")) continue;
-    const match = /^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{.*\})?\s+(\S+)$/.exec(line);
-    if (!match) continue;
-
-    const labels = {};
-    const labelPattern = /([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"/g;
-    let labelMatch;
-    while ((labelMatch = labelPattern.exec(match[2] || "")) !== null) {
-      labels[labelMatch[1]] = labelMatch[2];
-    }
-    samples.push({ name: match[1], labels, value: Number.parseFloat(match[3]) });
-  }
-  return samples;
-}
-
-function metricSum(samples, name, labels = {}) {
-  return samples
-    .filter(
-      (sample) =>
-        sample.name === name &&
-        Object.entries(labels).every(([key, value]) => sample.labels[key] === value),
-    )
-    .reduce((total, sample) => total + sample.value, 0);
-}
-
-function metricLast(samples, name) {
-  const found = samples.filter((sample) => sample.name === name);
-  return found.length > 0 ? found[found.length - 1].value : 0;
-}
-
-async function metricsSnapshot() {
-  const response = await call("/metrics");
-  return parseMetrics(typeof response.body === "string" ? response.body : "");
 }
 
 // --- scenarios -------------------------------------------------------------

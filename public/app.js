@@ -16,7 +16,14 @@ function toast(message, kind = "ok") {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     element.className = "toast";
-  }, 3500);
+  }, kind === "error" ? 8000 : 3500);
+}
+
+function rateLimitMessage(response) {
+  const seconds = response.headers.get("retry-after");
+  return seconds
+    ? `Too many requests. Please wait ${seconds}s and try again.`
+    : "Too many requests. Please wait a moment and try again.";
 }
 
 function authHeaders() {
@@ -44,6 +51,9 @@ async function request(path, { method = "GET", body, auth = false, extraHeaders 
   }
 
   if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error(rateLimitMessage(response));
+    }
     const message = data && data.error ? data.error : `Request failed (${response.status})`;
     throw new Error(message);
   }

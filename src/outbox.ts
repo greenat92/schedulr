@@ -93,6 +93,8 @@ export async function processOutboxOnce(options: OutboxOptions = {}): Promise<nu
     .prepare("SELECT COUNT(*) AS n FROM email_outbox WHERE status IN ('pending', 'sending')")
     .get() as { n: number };
   metrics.gauge("email_outbox_pending", pending.n);
+  metrics.inc("email_worker_cycles_total");
+  metrics.gauge("email_worker_last_run_timestamp_seconds", Date.now() / 1000);
 
   return delivered;
 }

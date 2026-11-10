@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>schedulr · email worker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">◷</span> schedulr
+        <span class="tag">email worker</span>
+      </div>
+      <div class="topbar-links">
+        <a class="ghost link" href="/lab.html">Scenario lab</a>
+        <a class="ghost link" href="/">← Back to app</a>
+      </div>
+    </header>
+
+    <main class="lab">
+      <section class="card">
+        <h2>Host credentials</h2>
+        <p class="muted">
+          The outbox is host-scoped. These credentials must match the host whose bookings you
+          want to observe.
+        </p>
+        <form id="credentials" class="credentials">
+          <label>Host <input id="host" placeholder="alice" /></label>
+          <label>API key <input id="key" type="password" placeholder="alice-key" /></label>
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Worker state</h2>
+            <p class="muted">
+              The outbox worker polls every 500ms: pending → sending → sent (or retry/backoff).
+            </p>
+          </div>
+          <div class="toolbar">
+            <button id="generate-one" class="ghost" type="button">Generate booking</button>
+            <button id="generate-five" class="ghost" type="button">Generate 5</button>
+            <button id="generate-hundred" class="ghost" type="button">Generate 100</button>
+            <button id="refresh" type="button">Refresh</button>
+          </div>
+        </div>
+
+        <div class="controls">
+          <label class="check">
+            <input id="auto-refresh" type="checkbox" checked />
+            <span>Auto-refresh</span>
+          </label>
+          <label>
+            Every
+            <select id="interval">
+              <option value="500">0.5s</option>
+              <option value="1000" selected>1s</option>
+              <option value="2000">2s</option>
+              <option value="5000">5s</option>
+            </select>
+          </label>
+          <span id="last-updated" class="muted"></span>
+          <span id="generate-status" class="muted"></span>
+        </div>
+
+        <div id="banner" class="banner" hidden></div>
+
+        <div class="metric-grid">
+          <div class="metric"><div class="k">Pending</div><div class="v" id="stat-pending">0</div></div>
+          <div class="metric"><div class="k">Sending</div><div class="v" id="stat-sending">0</div></div>
+          <div class="metric"><div class="k">Sent</div><div class="v" id="stat-sent">0</div></div>
+          <div class="metric"><div class="k">Failed (dead-letter)</div><div class="v" id="stat-failed">0</div></div>
+          <div class="metric"><div class="k">Delivered</div><div class="v" id="stat-delivered">0</div></div>
+          <div class="metric"><div class="k">Delivery failures</div><div class="v" id="stat-delivery-failures">0</div></div>
+          <div class="metric"><div class="k">Worker cycles</div><div class="v" id="stat-cycles">0</div></div>
+          <div class="metric"><div class="k">Last cycle</div><div class="v" id="stat-last-run">—</div></div>
+          <div class="metric"><div class="k">Event-loop lag (s)</div><div class="v" id="stat-lag">0.0000</div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Outbox rows</h2>
+            <p class="muted">Newest first, scoped to the authenticated host.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Booking</th>
+                <th>To</th>
+                <th>Status</th>
+                <th>Attempts</th>
+                <th>Next attempt</th>
+                <th>Last error</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="outbox-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/outbox.js" type="module"></script>
+  </body>
+</html>
