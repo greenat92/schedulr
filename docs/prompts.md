@@ -98,5 +98,5 @@ worker keeps delivering while the API is limited.
 > Commit the changes, clean the README, rename the repo, publish it with `gh`, and record the
 > prompts.
 
-**Outcome:** A curated commit history, a project-focused README, removal of the exercise tooling
+**Outcome:** A curated commit history, a project-focused README, removal of legacy tooling
 references, this build log, and publication to GitHub.
